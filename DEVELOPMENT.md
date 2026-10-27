@@ -30,8 +30,8 @@ One file `NetworkTester.ps1` (~3300 lines):
 - Settings persisted to `%APPDATA%\NetworkTester\settings.txt` via `Load-Settings`/`Save-Settings` (key=value, 10 keys).
 - Log auto-saved to `Desktop\NetworkTester_YYYY-MM-DD_HH-mm-ss.txt` after every run.
 
-## Buttons (bottom row y=610): Запази(10,120) Копирай(140,120) Изчисти(270,120) Сканирай LAN(400,140) Машина(550,110) Дискове(662,60) RAM(726,64) — full, widen form or add row for new buttons.
-## When adding a button: extend `Complete-TestRun` params (null-guarded), update ALL call sites, disable/enable consistently in every handler.
+## Buttons — row1 y=610: Запази(10,120) Копирай(140,120) Изчисти(270,120) Сканирай LAN(400,140) Машина(550,110) Дискове(662,60) RAM(726,64); row2 y=646: Система(10,90) Програми(110,100) HTML отчет(220,110). Form 820x740 (min 760x700).
+## When adding a button: extend `Complete-TestRun` params (null-guarded, currently $BtnSys/$BtnProgs/$BtnHtml at the tail), update ALL ~10 call sites, disable/enable consistently in every handler.
 
 ## Testing
 
@@ -39,4 +39,12 @@ No PowerShell on dev machine (Linux). Verify structurally: forbidden-token greps
 
 ## Feature ideas backlog (discussed, not implemented)
 
-- Comparison with previous test run; sound/visual alert options; HTML report export; scheduled monitoring; iperf-style throughput server mode.
+- Sound/visual alert options; scheduled monitoring; iperf-style throughput server mode.
+
+## New subsystems (added)
+
+- `Write-Log` also fills `$script:LogEntries` (PSObject Text/Level, cap 20000) — source for `Export-HtmlReport`.
+- `Save-LastResults`/`Compare-WithPrevious` write/read `%APPDATA%\NetworkTester\last_results.txt` (`timestamp=` + `name|status|detail`); called at end of `Write-Summary` (compare BEFORE save).
+- `Export-HtmlReport` writes UTF-8 HTML5 (per-level CSS classes); auto-saved next to the .txt in `Complete-TestRun` + manual "HTML отчет" button.
+- `Show-SystemHealth` (btnSys "Система"), `Show-InstalledPrograms` (btnProgs "Програми") — same orchestrator skeleton.
+- `Show-SystemInventory` appends a `;`-separated row to `Desktop\inventory.csv` (header auto-created).

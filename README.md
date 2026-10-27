@@ -7,13 +7,13 @@
 На Windows 10/11 отворете **PowerShell** и изпълнете:
 
 ```powershell
-irm https://raw.githubusercontent.com/USERNAME/NetTest41/main/NetworkTester.ps1 | iex
+irm https://raw.githubusercontent.com/Unstoppable4741/NetTest41/main/NetworkTester.ps1 | iex
 ```
 
 Ако `irm` дава грешка (например по-стар Windows 7 с PowerShell 2.0, където `irm` не съществува):
 
 ```powershell
-powershell -NoProfile -STA -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/USERNAME/NetTest41/main/NetworkTester.ps1'))"
+powershell -NoProfile -STA -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/Unstoppable4741/NetTest41/main/NetworkTester.ps1'))"
 ```
 
 > Забележка за Windows 7: GitHub изисква TLS 1.2. На чиста Win7 инсталация без .NET Framework 4.5+ връзката към github.com може да не успее – в този случай използвайте локалния .bat файл или инсталирайте .NET 4.8.

@@ -142,6 +142,35 @@ function Get-DefaultGateway {
     return ""
 }
 
+function Test-IsAdmin {
+    try {
+        return ([Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+    } catch {
+        return $false
+    }
+}
+
+function Request-Elevation {
+    # Връща $true само ако е стартирана нова инстанция с админ права (повикващият трябва да спре).
+    if (Test-IsAdmin) { return $false }
+    $ans = [System.Windows.Forms.DialogResult]::No
+    try {
+        $ans = [System.Windows.Forms.MessageBox]::Show(
+            "Тази функция изисква администраторски права.`r`nДа стартирам програмата като администратор?",
+            "NetworkTester",
+            [System.Windows.Forms.MessageBoxButtons]::YesNo,
+            [System.Windows.Forms.MessageBoxIcon]::Question)
+    } catch { return $false }
+    if ($ans -ne [System.Windows.Forms.DialogResult]::Yes) { return $false }
+    try {
+        Start-Process powershell.exe -Verb RunAs -ArgumentList '-NoProfile','-STA','-ExecutionPolicy','Bypass','-Command','iex ((New-Object System.Net.WebClient).DownloadString(''https://raw.githubusercontent.com/Unstoppable4741/NetTest41/main/NetworkTester.ps1''))'
+        return $true
+    } catch {
+        Write-Log ("Стартирането с администраторски права е отказано: " + $_.Exception.Message) "Warn"
+        return $false
+    }
+}
+
 function Resolve-Target {
     param([string]$Target, [ref]$ResolvedName)
     $addr = $null
@@ -648,7 +677,7 @@ function Write-Summary {
 }
 
 function Complete-TestRun {
-    param($Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo)
+    param($Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo, $BtnDisk, $BtnRam)
     if ($script:LogLines.Count -gt 0) {
         $desktop = [Environment]::GetFolderPath("Desktop")
         $stamp = [DateTime]::Now.ToString("yyyy-MM-dd_HH-mm-ss")
@@ -666,6 +695,8 @@ function Complete-TestRun {
     if ($BtnScan -ne $null) { $BtnScan.Enabled = $true }
     if ($BtnMon -ne $null) { $BtnMon.Enabled = $true }
     if ($BtnInfo -ne $null) { $BtnInfo.Enabled = $true }
+    if ($BtnDisk -ne $null) { $BtnDisk.Enabled = $true }
+    if ($BtnRam -ne $null) { $BtnRam.Enabled = $true }
     $BtnStop.Enabled = $false
     Set-Status "Готово."
 }
@@ -1325,7 +1356,7 @@ function Start-LoadTests {
     param(
         [string]$ServerTarget, [string]$PortsCsv,
         [int]$Connections, [int]$Seconds, [string]$LoadFile,
-        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo, $BtnDisk, $BtnRam
     )
     if ($script:Running) { return }
     $script:StopRequested = $false
@@ -1380,7 +1411,7 @@ function Start-LoadTests {
         Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
     } finally {
         Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
-            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo -BtnDisk $BtnDisk -BtnRam $BtnRam
     }
 }
 
@@ -1388,7 +1419,7 @@ function Start-AllTests {
     param(
         [string]$RouterIp, [string]$ServerTarget, [string]$PortsCsv,
         [int]$PingCount, [int]$StabSec,
-        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo, $BtnDisk, $BtnRam
     )
     if ($script:Running) { return }
     $script:StopRequested = $false
@@ -1451,14 +1482,14 @@ function Start-AllTests {
         Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
     } finally {
         Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
-            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo -BtnDisk $BtnDisk -BtnRam $BtnRam
     }
 }
 
 function Start-QuickTest {
     param(
         [string]$RouterIp, [string]$ServerTarget,
-        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo, $BtnDisk, $BtnRam
     )
     if ($script:Running) { return }
     $script:StopRequested = $false
@@ -1540,14 +1571,14 @@ function Start-QuickTest {
         Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
     } finally {
         Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
-            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo -BtnDisk $BtnDisk -BtnRam $BtnRam
     }
 }
 
 function Start-Monitor {
     param(
         [string]$RouterIp, [string]$ServerTarget, [int]$IntervalSec, [bool]$Beep,
-        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo, $BtnDisk, $BtnRam
     )
     if ($script:Running) { return }
     $script:StopRequested = $false
@@ -1701,14 +1732,14 @@ function Start-Monitor {
         Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
     } finally {
         Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
-            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo -BtnDisk $BtnDisk -BtnRam $BtnRam
     }
 }
 
 function Invoke-NetworkScan {
     param(
         [string]$ServerTarget,
-        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo, $BtnDisk, $BtnRam
     )
     if ($script:Running) { return }
     $script:StopRequested = $false
@@ -1899,7 +1930,7 @@ function Invoke-NetworkScan {
         Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
     } finally {
         Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
-            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo -BtnDisk $BtnDisk -BtnRam $BtnRam
     }
 }
 
@@ -1916,7 +1947,7 @@ function Convert-U16ArrayToText {
 
 function Show-SystemInventory {
     param(
-        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo, $BtnDisk, $BtnRam
     )
     if ($script:Running) { return }
     $script:StopRequested = $false
@@ -2132,7 +2163,521 @@ function Show-SystemInventory {
         Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
     } finally {
         Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
-            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo -BtnDisk $BtnDisk -BtnRam $BtnRam
+    }
+}
+
+function Invoke-ExternalLogged {
+    param([string]$Exe, [string]$ArgsLine, [string]$OutFile, [string]$StatusText)
+    try { if (Test-Path $OutFile) { Remove-Item $OutFile -Force -ErrorAction SilentlyContinue } } catch { }
+    $p = $null
+    try {
+        $p = Start-Process -FilePath $Exe -ArgumentList $ArgsLine -RedirectStandardOutput $OutFile -NoNewWindow -PassThru -ErrorAction Stop
+    } catch {
+        Write-Log ("    Не може да се стартира " + $Exe + ": " + $_.Exception.Message) "Warn"
+        return $null
+    }
+    while (-not $p.HasExited) {
+        Set-Status $StatusText
+        Do-Events
+        if (Stop-Check) {
+            try { $p.Kill() } catch { }
+            return $null
+        }
+        Start-Sleep -Milliseconds 300
+    }
+    $code = $p.ExitCode
+    $lines = @()
+    try { $lines = @(Get-Content $OutFile -ErrorAction SilentlyContinue) } catch { }
+    $shown = 0
+    foreach ($ln in $lines) {
+        $t = ("" + $ln).Trim()
+        if ($t -eq "") { continue }
+        Write-Log ("    " + $t)
+        $shown++
+        if ($shown -ge 8) { break }
+    }
+    try { Remove-Item $OutFile -Force -ErrorAction SilentlyContinue } catch { }
+    return $code
+}
+
+function Show-DiskMaintenance {
+    param(
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo, $BtnDisk, $BtnRam
+    )
+    if ($script:Running) { return }
+    $script:StopRequested = $false
+    $script:StopLogged = $false
+    $script:Running = $true
+    [void]$script:Results.Clear()
+    try {
+        $Progress.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
+        Set-Status "Проверка на дисковете..."
+
+        Write-Log "=== ДИСКОВЕ: здраве и поддръжка ===" "Header"
+        $isAdmin = Test-IsAdmin
+        $elevAsked = $false
+        $build = 0
+        try { $build = [int](Get-WmiObject Win32_OperatingSystem -ErrorAction Stop).BuildNumber } catch { }
+        if ($isAdmin) {
+            Write-Log "  Работи с администраторски права - всички проверки са налични."
+        } else {
+            Write-Log "  БЕЗ администраторски права - SMART, TRIM и почистването ще са ограничени." "Warn"
+        }
+
+        # --- Стъпка 1: физически дискове ---
+        $disks = @()
+        try { $disks = @(Get-WmiObject Win32_DiskDrive -ErrorAction Stop) } catch { $disks = @() }
+        if ($disks.Count -eq 0) {
+            Write-Log "  Не са открити физически дискове." "Fail"
+            Add-Result "Дискове" "Fail" "няма открити дискове"
+        }
+        $physSsd = @{}
+        foreach ($dd in $disks) {
+            if (Stop-Check) { return }
+            $model = ("" + $dd.Model).Trim()
+            $sizeGb = [math]::Round([double]$dd.Size / 1GB, 1)
+            $isSsd = ($model -match "SSD|NVMe|Solid")
+            $physSsd["" + $dd.Index] = $isSsd
+            $kind = "HDD"
+            if ($isSsd) { $kind = "SSD (вероятно)" }
+            Write-Log ("  Диск " + $dd.Index + ": " + $model + " - " + $sizeGb + " GB, статус: " + $dd.Status + " [" + $kind + "]")
+            if (("" + $dd.Status) -eq "OK") {
+                Add-Result ("Диск " + $dd.Index + " " + $model) "OK" ("" + $sizeGb + " GB " + $kind)
+            } else {
+                Add-Result ("Диск " + $dd.Index + " " + $model) "Warn" ("статус: " + $dd.Status)
+            }
+            Do-Events
+        }
+
+        # --- Стъпка 2: SMART статус (изисква админ) ---
+        $smartRows = @()
+        $smartFailed = $false
+        try { $smartRows = @(Get-WmiObject -Namespace "root\wmi" -Class MSStorageDriver_FailurePredictStatus -ErrorAction Stop) } catch { $smartRows = @() }
+        if ($smartRows.Count -eq 0) {
+            $smartFailed = $true
+            Write-Log "  SMART статусът не е достъпен - изисква администраторски права (или драйверът не го поддържа)." "Warn"
+        } else {
+            foreach ($dd in $disks) {
+                if (Stop-Check) { return }
+                $model = ("" + $dd.Model).Trim()
+                $mw = $model
+                $sp = $mw.IndexOf(" ")
+                if ($sp -gt 0) { $mw = $mw.Substring(0, $sp) }
+                $sRow = $null
+                foreach ($s in $smartRows) {
+                    if ($mw -ne "" -and (("" + $s.InstanceName).ToUpper()).Contains($mw.ToUpper())) { $sRow = $s; break }
+                }
+                if ($sRow -eq $null) {
+                    Write-Log ("    " + $model + ": няма SMART запис за този диск.")
+                } elseif ($sRow.PredictFailure) {
+                    Write-Log ("    " + $model + ": SMART АЛАРМА - дискът докладва предстоящ отказ!") "Fail"
+                    Add-Result ("SMART " + $model) "Fail" "предстоящ отказ"
+                } else {
+                    Write-Log ("    " + $model + ": SMART статус OK.") "OK"
+                    Add-Result ("SMART " + $model) "OK" "без предупреждения"
+                }
+            }
+        }
+
+        # --- Стъпка 3: SMART атрибути ---
+        $smartDataRows = @()
+        try { $smartDataRows = @(Get-WmiObject -Namespace "root\wmi" -Class MSStorageDriver_FailurePredictData -ErrorAction Stop) } catch { $smartDataRows = @() }
+        if ($smartDataRows.Count -eq 0) {
+            if (-not $smartFailed) {
+                Write-Log "  SMART атрибутите не са достъпни." "Warn"
+            }
+        } else {
+            $attrNames = @{
+                5 = "Преразпределени сектори"; 9 = "Часове работа"; 10 = "Опити за завъртане"
+                12 = "Цикли вкл/изкл"; 194 = "Температура (C)"; 197 = "Чакащи сектори"
+                198 = "Некоригируеми"; 199 = "UDMA CRC грешки"; 231 = "Оставащ живот (%)"
+            }
+            $attrWarn = 0
+            foreach ($sd in $smartDataRows) {
+                if (Stop-Check) { return }
+                $vs = $sd.VendorSpecific
+                if ($vs -eq $null) { continue }
+                $inst = "" + $sd.InstanceName
+                $label = $inst
+                foreach ($dd in $disks) {
+                    $m2 = ("" + $dd.Model).Trim()
+                    $sp2 = $m2.IndexOf(" ")
+                    if ($sp2 -gt 0) { $m2 = $m2.Substring(0, $sp2) }
+                    if ($m2 -ne "" -and $inst.ToUpper().Contains($m2.ToUpper())) { $label = ("" + $dd.Model).Trim(); break }
+                }
+                Write-Log ("    " + $label + ":")
+                $foundAttr = $false
+                $len = [int]$vs.Length
+                $off = 2
+                while (($off + 12) -le $len) {
+                    $aid = [int]$vs[$off]
+                    if ($aid -ne 0 -and $attrNames.ContainsKey($aid)) {
+                        $foundAttr = $true
+                        $aval = [int]$vs[$off + 3]
+                        $aworst = [int]$vs[$off + 4]
+                        $raw = 0L
+                        $mult = 1L
+                        for ($k = 0; $k -lt 6; $k++) {
+                            $raw += [long]([int]$vs[$off + 5 + $k]) * $mult
+                            $mult = $mult * 256
+                        }
+                        Write-Log ("      " + $attrNames[$aid] + " = " + $raw + " (value/worst " + $aval + "/" + $aworst + ")")
+                        if (($aid -eq 5 -or $aid -eq 197 -or $aid -eq 198 -or $aid -eq 199) -and $raw -gt 0) {
+                            Write-Log ("        ВНИМАНИЕ: " + $attrNames[$aid] + " е над 0 - признак за проблеми!") "Warn"
+                            $attrWarn++
+                        }
+                    }
+                    $off += 12
+                }
+                if (-not $foundAttr) {
+                    Write-Log "      (няма отчетени познати атрибути)"
+                }
+                Do-Events
+            }
+            if ($attrWarn -gt 0) {
+                Write-Log ("  Открити са " + $attrWarn + " тревожни SMART атрибута.") "Warn"
+                Add-Result "SMART атрибути" "Warn" ("" + $attrWarn + " тревожни стойности")
+            } else {
+                Add-Result "SMART атрибути" "OK" "в норма"
+            }
+        }
+
+        # --- Стъпка 4: TRIM ---
+        Write-Log "  --- TRIM проверка ---"
+        $trimDisabled = $false
+        try {
+            $fsOut = (fsutil behavior query DisableDeleteNotify | Out-String)
+            Write-Log ("  " + $fsOut.Trim())
+            if ($fsOut -match "=\s*0") {
+                Write-Log "  TRIM е включен." "OK"
+                Add-Result "TRIM" "OK" "включен"
+            } elseif ($fsOut -match "=\s*1") {
+                $trimDisabled = $true
+            } else {
+                Write-Log "  Не може да се определи TRIM състоянието (възможно е да трябват админ права)." "Warn"
+            }
+        } catch {
+            Write-Log ("  TRIM проверката се провали: " + $_.Exception.Message) "Warn"
+        }
+        if ($trimDisabled) {
+            if ($isAdmin) {
+                try {
+                    $fsSet = (fsutil behavior set DisableDeleteNotify 0 | Out-String)
+                    Write-Log ("  " + $fsSet.Trim())
+                    Write-Log "  TRIM беше изключен - сега е включен." "OK"
+                    Add-Result "TRIM" "OK" "включен от програмата"
+                } catch {
+                    Write-Log "  Неуспешно включване на TRIM." "Warn"
+                    Add-Result "TRIM" "Warn" "неуспешно включване"
+                }
+            } else {
+                Write-Log "  TRIM е ИЗКЛЮЧЕН! Включването изисква администраторски права." "Warn"
+                Add-Result "TRIM" "Warn" "изключен - нужен админ"
+            }
+        }
+
+        # --- Стъпка 5: Оптимизация / дефрагментация ---
+        Write-Log "  --- Оптимизация / дефрагментация ---"
+        if (-not $isAdmin) {
+            Write-Log "  Пропускам оптимизацията - изисква администратор." "Warn"
+            Add-Result "Оптимизация на дисковете" "Warn" "пропуснато - нужен админ"
+            $elevAsked = $true
+            if (Request-Elevation) { return }
+        } else {
+            $optConfirm = [System.Windows.Forms.DialogResult]::No
+            try {
+                $optConfirm = [System.Windows.Forms.MessageBox]::Show(
+                    "Да стартирам оптимизация/дефрагментация на дисковете?`r`nТова може да отнеме дълго време (до часове за големи HDD).`r`nSSD дисковете се оптимизират с retrim (бързо).",
+                    "NetworkTester",
+                    [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                    [System.Windows.Forms.MessageBoxIcon]::Question)
+            } catch { }
+            if ($optConfirm -ne [System.Windows.Forms.DialogResult]::Yes) {
+                Write-Log "  Оптимизацията е пропусната по желание на потребителя."
+                Add-Result "Оптимизация на дисковете" "OK" "пропуснато от потребителя"
+            } else {
+                Write-Log "  Стартирана оптимизация - може да отнеме дълго. 'Стоп' прекъсва текущата операция."
+                # карта: логически дял -> физически диск
+                $partPhys = @{}
+                try {
+                    foreach ($a in @(Get-WmiObject Win32_DiskDriveToDiskPartition -ErrorAction Stop)) {
+                        $physIdx = $null; $partId = $null
+                        if (("" + $a.Antecedent) -match "PHYSICALDRIVE(\d+)") { $physIdx = $matches[1] }
+                        if (("" + $a.Dependent) -match 'DeviceID="([^"]+)"') { $partId = $matches[1] }
+                        if ($physIdx -ne $null -and $partId -ne $null) { $partPhys[$partId] = $physIdx }
+                    }
+                } catch { }
+                $logPhys = @{}
+                try {
+                    foreach ($a in @(Get-WmiObject Win32_LogicalDiskToPartition -ErrorAction Stop)) {
+                        $partId = $null; $logId = $null
+                        if (("" + $a.Antecedent) -match 'DeviceID="([^"]+)"') { $partId = $matches[1] }
+                        if (("" + $a.Dependent) -match 'DeviceID="([^"]+)"') { $logId = $matches[1] }
+                        if ($partId -ne $null -and $logId -ne $null -and $partPhys.ContainsKey($partId)) {
+                            $logPhys[$logId] = $partPhys[$partId]
+                        }
+                    }
+                } catch { }
+                foreach ($ld in @(Get-WmiObject Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue)) {
+                    if (Stop-Check) { return }
+                    $letter = "" + $ld.DeviceID
+                    $drvSsd = $false
+                    if ($logPhys.ContainsKey($letter)) {
+                        $pi = $logPhys[$letter]
+                        if ($physSsd.ContainsKey($pi)) { $drvSsd = $physSsd[$pi] }
+                    }
+                    $drvKind = "HDD"
+                    if ($drvSsd) { $drvKind = "SSD" }
+                    Write-Log ("  Дял " + $letter + " (" + $drvKind + ")")
+                    if ($drvSsd -and $build -gt 0 -and $build -lt 9200) {
+                        Write-Log "    SSD на Windows 7 - TRIM проверен, дефрагментация не се изпълнява."
+                        Add-Result ("Оптимизация " + $letter) "OK" "SSD - без дефраг"
+                        continue
+                    }
+                    $lt = $letter.TrimEnd(":")
+                    $of = Join-Path $env:TEMP ("nt_defrag_" + $lt + ".txt")
+                    $exitCode = Invoke-ExternalLogged "defrag.exe" ($letter + " /O") $of ("Оптимизация на " + $letter + "... ('Стоп' за прекъсване)")
+                    if ($script:StopRequested) { return }
+                    if ($exitCode -eq $null) { continue }
+                    if ($exitCode -ne 0) {
+                        Write-Log "    /O не се поддържа - опитвам класическа дефрагментация (/U)."
+                        $exitCode = Invoke-ExternalLogged "defrag.exe" ($letter + " /U") $of ("Дефрагментация на " + $letter + "... ('Стоп' за прекъсване)")
+                        if ($script:StopRequested) { return }
+                    }
+                    if ($exitCode -eq $null) { continue }
+                    if ($exitCode -eq 0) {
+                        Write-Log ("    " + $letter + " оптимизиран успешно.") "OK"
+                        Add-Result ("Оптимизация " + $letter) "OK" "завършена"
+                    } else {
+                        Write-Log ("    " + $letter + " завърши с код " + $exitCode + ".") "Warn"
+                        Add-Result ("Оптимизация " + $letter) "Warn" ("код " + $exitCode)
+                    }
+                }
+            }
+        }
+
+        # --- Стъпка 6: Стари файлове на апдейтите ---
+        Write-Log "  --- Стари файлове на апдейтите ---"
+        $sdPath = Join-Path $env:WINDIR "SoftwareDistribution\Download"
+        $sdMb = 0.0
+        if (Test-Path $sdPath) {
+            Set-Status "Изчисляване на размера на кеша на апдейтите..."
+            $sizeBytes = 0L
+            $sizeSw = [System.Diagnostics.Stopwatch]::StartNew()
+            Get-ChildItem $sdPath -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+                if ($sizeSw.Elapsed.TotalSeconds -gt 10) { $sizeSw.Stop(); break }
+                if (-not $_.PSIsContainer) { $sizeBytes += [long]$_.Length }
+            }
+            $sdMb = [math]::Round($sizeBytes / 1MB, 1)
+            Write-Log ("  Кеш на Windows Update: " + $sdMb + " MB (" + $sdPath + ")")
+        } else {
+            Write-Log "  Папката с кеша на апдейтите не е намерена."
+        }
+        if ($sdMb -ge 50) {
+            if ($isAdmin) {
+                $delAns = [System.Windows.Forms.DialogResult]::No
+                try {
+                    $delAns = [System.Windows.Forms.MessageBox]::Show(
+                        ("Ще изтрия " + $sdMb + " MB стари файлове на апдейти (кеш на Windows Update). Продължавам?"),
+                        "NetworkTester",
+                        [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                        [System.Windows.Forms.MessageBoxIcon]::Question)
+                } catch { }
+                if ($delAns -eq [System.Windows.Forms.DialogResult]::Yes) {
+                    try {
+                        Remove-Item (Join-Path $sdPath "*") -Recurse -Force -ErrorAction SilentlyContinue
+                        Write-Log ("  Изтрити ~" + $sdMb + " MB от кеша на апдейтите.") "OK"
+                        Add-Result "Почистване на апдейт кеш" "OK" ("освободени ~" + $sdMb + " MB")
+                    } catch {
+                        Write-Log ("  Грешка при изтриване: " + $_.Exception.Message) "Warn"
+                        Add-Result "Почистване на апдейт кеш" "Warn" "частично изтриване"
+                    }
+                } else {
+                    Write-Log "  Изтриването на кеша е пропуснато от потребителя."
+                }
+            } else {
+                Write-Log "  Изтриването изисква администраторски права - пропускам." "Warn"
+            }
+        } elseif ($sdMb -gt 0) {
+            Write-Log "  Кешът е малък (под 50 MB) - няма нужда от чистене."
+        }
+
+        # DISM почистване на компонентите
+        Write-Log "  --- Почистване на компонентите (DISM) ---"
+        if (-not $isAdmin) {
+            Write-Log "  DISM почистването изисква администраторски права - пропускам." "Warn"
+            Add-Result "DISM почистване" "Warn" "пропуснато - нужен админ"
+        } else {
+            $dismArgs = "/online /Cleanup-Image /StartComponentCleanup"
+            if ($build -gt 0 -and $build -lt 9200) {
+                $dismArgs = "/online /Cleanup-Image /SPSuperseded"
+                Write-Log "  Windows 7 - ще се ползва /SPSuperseded (премахва стари файлове от Service Pack)."
+            }
+            $dismAns = [System.Windows.Forms.DialogResult]::No
+            try {
+                $dismAns = [System.Windows.Forms.MessageBox]::Show(
+                    "Почистването на компонентите с DISM може да отнеме до 30 минути. Стартирам?",
+                    "NetworkTester",
+                    [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                    [System.Windows.Forms.MessageBoxIcon]::Question)
+            } catch { }
+            if ($dismAns -eq [System.Windows.Forms.DialogResult]::Yes) {
+                $dismFile = Join-Path $env:TEMP "nt_dism.txt"
+                Write-Log "  DISM работи - може да отнеме до 30 минути. 'Стоп' прекъсва."
+                $dismExit = Invoke-ExternalLogged "dism.exe" $dismArgs $dismFile "DISM почистване на компонентите..."
+                if ($script:StopRequested) { return }
+                if ($dismExit -eq 0) {
+                    Write-Log "  DISM почистването завърши успешно." "OK"
+                    Add-Result "DISM почистване" "OK" "завършено"
+                } elseif ($dismExit -ne $null) {
+                    Write-Log ("  DISM завърши с код " + $dismExit + ".") "Warn"
+                    Add-Result "DISM почистване" "Warn" ("код " + $dismExit)
+                }
+            } else {
+                Write-Log "  DISM почистването е пропуснато от потребителя."
+            }
+        }
+
+        if (-not $isAdmin -and $smartFailed -and -not $elevAsked) {
+            Write-Log "  За пълна проверка (SMART, TRIM, дефрагментация, DISM) се нуждаете от администраторски права."
+            if (Request-Elevation) { return }
+        }
+
+        Write-Summary
+
+    } catch {
+        Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
+    } finally {
+        Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo -BtnDisk $BtnDisk -BtnRam $BtnRam
+    }
+}
+
+function Test-Memory {
+    param(
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo, $BtnDisk, $BtnRam
+    )
+    if ($script:Running) { return }
+    $script:StopRequested = $false
+    $script:StopLogged = $false
+    $script:Running = $true
+    [void]$script:Results.Clear()
+    $chunks = $null
+    try {
+        $Progress.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
+        Set-Status "Тест на паметта..."
+        Write-Log "=== ТЕСТ НА ПАМЕТТА ===" "Header"
+
+        $freeMb = 0
+        try {
+            $osObj = Get-WmiObject Win32_OperatingSystem -ErrorAction Stop
+            $freeMb = [int]([double]$osObj.FreePhysicalMemory / 1024)
+        } catch { $freeMb = 0 }
+        if ($freeMb -gt 0) {
+            Write-Log ("  Свободна памет: " + $freeMb + " MB")
+        } else {
+            Write-Log "  Не може да се определи свободната памет - ще се тестват 512 MB." "Warn"
+        }
+        $targetMb = 512
+        if ($freeMb -gt 0) {
+            $targetMb = [int]($freeMb / 2)
+            if ($targetMb -gt 1536) { $targetMb = 1536 }
+        }
+        $chunkCount = [int]($targetMb / 64)
+        if ($chunkCount -lt 1) { $chunkCount = 1 }
+        Write-Log ("  Бърз тест в паметта: " + ($chunkCount * 64) + " MB (" + $chunkCount + " блока по 64 MB).")
+
+        $chunks = New-Object System.Collections.ArrayList
+        $memSw = [System.Diagnostics.Stopwatch]::StartNew()
+        for ($c = 0; $c -lt $chunkCount; $c++) {
+            if (Stop-Check) { return }
+            Set-Status ("RAM: запис " + ($c + 1) + "/" + $chunkCount + " блока")
+            $pattern = New-Object byte[] 65536
+            for ($j = 0; $j -lt 65536; $j++) {
+                $pattern[$j] = [byte](($j * 31 + $c) % 256)
+            }
+            $chunk = $null
+            try {
+                $chunk = New-Object byte[] (64 * 1024 * 1024)
+            } catch {
+                Write-Log ("  Заделени са само " + ($chunks.Count * 64) + " MB - паметта не стигна за повече.") "Warn"
+                break
+            }
+            $dstOffset = 0
+            while ($dstOffset -lt $chunk.Length) {
+                [System.Buffer]::BlockCopy($pattern, 0, $chunk, $dstOffset, 65536)
+                $dstOffset += 65536
+            }
+            [void]$chunks.Add($chunk)
+            Do-Events
+        }
+
+        if ($chunks.Count -eq 0) {
+            Write-Log "  Не може да се задели памет за теста." "Fail"
+            Add-Result "RAM тест" "Fail" "няма достатъчно свободна памет"
+        } else {
+            $testedMb = $chunks.Count * 64
+            Write-Log ("  Проверка на " + $testedMb + " MB - 3 прохода с MD5 контролна сума...")
+            $md5 = [System.Security.Cryptography.MD5]::Create()
+            $errors = 0
+            $baseHashes = New-Object System.Collections.ArrayList
+            for ($pass = 1; $pass -le 3; $pass++) {
+                if (Stop-Check) { return }
+                for ($i = 0; $i -lt $chunks.Count; $i++) {
+                    if (($i % 4) -eq 0) {
+                        if (Stop-Check) { return }
+                        Set-Status ("RAM: проход " + $pass + "/3, блок " + ($i + 1) + "/" + $chunks.Count)
+                        Do-Events
+                    }
+                    $h = [System.BitConverter]::ToString($md5.ComputeHash($chunks[$i]))
+                    if ($pass -eq 1) {
+                        [void]$baseHashes.Add($h)
+                    } elseif ($h -ne $baseHashes[$i]) {
+                        $errors++
+                        Write-Log ("    ГРЕШКА: блок " + $i + ", проход " + $pass + " - съдържанието е променено!") "Fail"
+                    }
+                }
+            }
+            $memSw.Stop()
+            $sec = [math]::Round($memSw.Elapsed.TotalSeconds, 1)
+            Write-Log ("  Тествани " + $testedMb + " MB, 3 прохода, " + $sec + " сек, грешки: " + $errors)
+            if ($errors -eq 0) {
+                Write-Log "Резултат: OK - паметта е стабилна при бързия тест." "OK"
+                Add-Result "RAM тест" "OK" ("" + $testedMb + " MB без грешки")
+            } else {
+                Write-Log "Резултат: ПРОБЛЕМ - открити са грешки в паметта!" "Fail"
+                Add-Result "RAM тест" "Fail" ("" + $errors + " грешки в " + $testedMb + " MB")
+            }
+        }
+
+        Write-Summary
+
+        # Предложение за пълен тест с рестарт
+        $mdAns = [System.Windows.Forms.DialogResult]::No
+        try {
+            $mdAns = [System.Windows.Forms.MessageBox]::Show(
+                "За пълен и надежден тест на паметта се препоръчва Windows Memory Diagnostic (mdsched).`r`nИзисква рестартиране на компютъра. Да го насроча ли?",
+                "NetworkTester",
+                [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                [System.Windows.Forms.MessageBoxIcon]::Question)
+        } catch { }
+        if ($mdAns -eq [System.Windows.Forms.DialogResult]::Yes) {
+            try {
+                Start-Process "mdsched.exe"
+                Write-Log "  Windows Memory Diagnostic е насрочен - рестартирайте, когато сте готови." "OK"
+            } catch {
+                Write-Log ("  Неуспешен старт на mdsched: " + $_.Exception.Message) "Warn"
+            }
+        }
+
+    } catch {
+        Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
+    } finally {
+        $chunks = $null
+        try { [GC]::Collect() } catch { }
+        Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo -BtnDisk $BtnDisk -BtnRam $BtnRam
     }
 }
 
@@ -2476,6 +3021,20 @@ if (-not $env:NETWORKTESTER_NOGUI) {
         $btnInfo.Anchor = "Bottom, Left"
         $form.Controls.Add($btnInfo)
 
+        $btnDisk = New-Object System.Windows.Forms.Button
+        $btnDisk.Text = "Дискове"
+        $btnDisk.Location = New-Object System.Drawing.Point(662, 610)
+        $btnDisk.Size = New-Object System.Drawing.Size(60, 28)
+        $btnDisk.Anchor = "Bottom, Left"
+        $form.Controls.Add($btnDisk)
+
+        $btnRam = New-Object System.Windows.Forms.Button
+        $btnRam.Text = "RAM"
+        $btnRam.Location = New-Object System.Drawing.Point(726, 610)
+        $btnRam.Size = New-Object System.Drawing.Size(64, 28)
+        $btnRam.Anchor = "Bottom, Left"
+        $form.Controls.Add($btnRam)
+
         # ---------- Load settings ----------
         $gw = Get-DefaultGateway
         if ($gw -ne "") { $txtRouter.Text = $gw }
@@ -2535,11 +3094,13 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             $btnScan.Enabled = $false
             $btnMon.Enabled = $false
             $btnInfo.Enabled = $false
+            $btnDisk.Enabled = $false
+            $btnRam.Enabled = $false
             $btnStop.Enabled = $true
             Start-AllTests -RouterIp $router -ServerTarget $server -PortsCsv $txtPorts.Text.Trim() `
                 -PingCount ([int]$numPing.Value) -StabSec ([int]$numStab.Value) `
                 -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
-                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo -BtnDisk $btnDisk -BtnRam $btnRam
         })
 
         $btnLoad.Add_Click({
@@ -2567,12 +3128,14 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             $btnScan.Enabled = $false
             $btnMon.Enabled = $false
             $btnInfo.Enabled = $false
+            $btnDisk.Enabled = $false
+            $btnRam.Enabled = $false
             $btnStop.Enabled = $true
             Start-LoadTests -ServerTarget $server -PortsCsv $txtPorts.Text.Trim() `
                 -Connections ([int]$numLoadConns.Value) -Seconds ([int]$numLoadSec.Value) `
                 -LoadFile $txtLoadFile.Text.Trim() `
                 -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
-                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo -BtnDisk $btnDisk -BtnRam $btnRam
         })
 
         $btnQuick.Add_Click({
@@ -2598,10 +3161,12 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             $btnScan.Enabled = $false
             $btnMon.Enabled = $false
             $btnInfo.Enabled = $false
+            $btnDisk.Enabled = $false
+            $btnRam.Enabled = $false
             $btnStop.Enabled = $true
             Start-QuickTest -RouterIp $router -ServerTarget $server `
                 -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
-                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo -BtnDisk $btnDisk -BtnRam $btnRam
         })
 
         $btnMon.Add_Click({
@@ -2629,11 +3194,13 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             $btnScan.Enabled = $false
             $btnMon.Enabled = $false
             $btnInfo.Enabled = $false
+            $btnDisk.Enabled = $false
+            $btnRam.Enabled = $false
             $btnStop.Enabled = $true
             Start-Monitor -RouterIp $router -ServerTarget $server `
                 -IntervalSec ([int]$numMonInt.Value) -Beep $chkBeep.Checked `
                 -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
-                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo -BtnDisk $btnDisk -BtnRam $btnRam
         })
 
         $btnScan.Add_Click({
@@ -2649,10 +3216,12 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             $btnScan.Enabled = $false
             $btnMon.Enabled = $false
             $btnInfo.Enabled = $false
+            $btnDisk.Enabled = $false
+            $btnRam.Enabled = $false
             $btnStop.Enabled = $true
             Invoke-NetworkScan -ServerTarget $server `
                 -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
-                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo -BtnDisk $btnDisk -BtnRam $btnRam
         })
 
         $btnInfo.Add_Click({
@@ -2668,9 +3237,51 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             $btnScan.Enabled = $false
             $btnMon.Enabled = $false
             $btnInfo.Enabled = $false
+            $btnDisk.Enabled = $false
+            $btnRam.Enabled = $false
             $btnStop.Enabled = $true
             Show-SystemInventory -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
-                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo -BtnDisk $btnDisk -BtnRam $btnRam
+        })
+
+        $btnDisk.Add_Click({
+            if ($script:Running) { return }
+            $router = $txtRouter.Text.Trim()
+            $server = $txtServer.Text.Trim()
+            Save-Settings $router $server $txtPorts.Text.Trim() ([int]$numPing.Value) ([int]$numStab.Value) `
+                ([int]$numLoadConns.Value) ([int]$numLoadSec.Value) $txtLoadFile.Text.Trim() `
+                ([int]$numMonInt.Value) ([int]$chkBeep.Checked)
+            $btnStart.Enabled = $false
+            $btnLoad.Enabled = $false
+            $btnQuick.Enabled = $false
+            $btnScan.Enabled = $false
+            $btnMon.Enabled = $false
+            $btnInfo.Enabled = $false
+            $btnDisk.Enabled = $false
+            $btnRam.Enabled = $false
+            $btnStop.Enabled = $true
+            Show-DiskMaintenance -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo -BtnDisk $btnDisk -BtnRam $btnRam
+        })
+
+        $btnRam.Add_Click({
+            if ($script:Running) { return }
+            $router = $txtRouter.Text.Trim()
+            $server = $txtServer.Text.Trim()
+            Save-Settings $router $server $txtPorts.Text.Trim() ([int]$numPing.Value) ([int]$numStab.Value) `
+                ([int]$numLoadConns.Value) ([int]$numLoadSec.Value) $txtLoadFile.Text.Trim() `
+                ([int]$numMonInt.Value) ([int]$chkBeep.Checked)
+            $btnStart.Enabled = $false
+            $btnLoad.Enabled = $false
+            $btnQuick.Enabled = $false
+            $btnScan.Enabled = $false
+            $btnMon.Enabled = $false
+            $btnInfo.Enabled = $false
+            $btnDisk.Enabled = $false
+            $btnRam.Enabled = $false
+            $btnStop.Enabled = $true
+            Test-Memory -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo -BtnDisk $btnDisk -BtnRam $btnRam
         })
 
         $btnStop.Add_Click({
@@ -2702,7 +3313,7 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             [void]$script:LogLines.Clear()
         })
 
-        Write-Log "NetworkTester е готов. Попълнете настройките и изберете: 'Старт', 'Бърз тест', 'Старт натоварване', 'Старт мониторинг', 'Сканирай LAN' или 'Машина'." "Header"
+        Write-Log "NetworkTester е готов. Попълнете настройките и изберете: 'Старт', 'Бърз тест', 'Старт натоварване', 'Старт мониторинг', 'Сканирай LAN', 'Машина', 'Дискове' или 'RAM'." "Header"
         [void]$form.ShowDialog()
     } catch {
         try { Add-Type -AssemblyName System.Windows.Forms } catch { }

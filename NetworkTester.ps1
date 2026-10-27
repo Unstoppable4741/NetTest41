@@ -648,7 +648,7 @@ function Write-Summary {
 }
 
 function Complete-TestRun {
-    param($Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon)
+    param($Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo)
     if ($script:LogLines.Count -gt 0) {
         $desktop = [Environment]::GetFolderPath("Desktop")
         $stamp = [DateTime]::Now.ToString("yyyy-MM-dd_HH-mm-ss")
@@ -665,6 +665,7 @@ function Complete-TestRun {
     if ($BtnQuick -ne $null) { $BtnQuick.Enabled = $true }
     if ($BtnScan -ne $null) { $BtnScan.Enabled = $true }
     if ($BtnMon -ne $null) { $BtnMon.Enabled = $true }
+    if ($BtnInfo -ne $null) { $BtnInfo.Enabled = $true }
     $BtnStop.Enabled = $false
     Set-Status "Готово."
 }
@@ -1324,7 +1325,7 @@ function Start-LoadTests {
     param(
         [string]$ServerTarget, [string]$PortsCsv,
         [int]$Connections, [int]$Seconds, [string]$LoadFile,
-        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo
     )
     if ($script:Running) { return }
     $script:StopRequested = $false
@@ -1379,7 +1380,7 @@ function Start-LoadTests {
         Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
     } finally {
         Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
-            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo
     }
 }
 
@@ -1387,7 +1388,7 @@ function Start-AllTests {
     param(
         [string]$RouterIp, [string]$ServerTarget, [string]$PortsCsv,
         [int]$PingCount, [int]$StabSec,
-        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo
     )
     if ($script:Running) { return }
     $script:StopRequested = $false
@@ -1450,14 +1451,14 @@ function Start-AllTests {
         Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
     } finally {
         Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
-            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo
     }
 }
 
 function Start-QuickTest {
     param(
         [string]$RouterIp, [string]$ServerTarget,
-        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo
     )
     if ($script:Running) { return }
     $script:StopRequested = $false
@@ -1539,14 +1540,14 @@ function Start-QuickTest {
         Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
     } finally {
         Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
-            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo
     }
 }
 
 function Start-Monitor {
     param(
         [string]$RouterIp, [string]$ServerTarget, [int]$IntervalSec, [bool]$Beep,
-        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo
     )
     if ($script:Running) { return }
     $script:StopRequested = $false
@@ -1700,14 +1701,14 @@ function Start-Monitor {
         Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
     } finally {
         Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
-            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo
     }
 }
 
 function Invoke-NetworkScan {
     param(
         [string]$ServerTarget,
-        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo
     )
     if ($script:Running) { return }
     $script:StopRequested = $false
@@ -1898,7 +1899,240 @@ function Invoke-NetworkScan {
         Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
     } finally {
         Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
-            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo
+    }
+}
+
+function Convert-U16ArrayToText {
+    param($Arr)
+    if ($Arr -eq $null) { return "" }
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($v in $Arr) {
+        $c = [int]$v
+        if ($c -ne 0) { [void]$sb.Append([char]$c) }
+    }
+    return $sb.ToString().Trim()
+}
+
+function Show-SystemInventory {
+    param(
+        $Progress, $BtnStart, $BtnLoad, $BtnStop, $BtnQuick, $BtnScan, $BtnMon, $BtnInfo
+    )
+    if ($script:Running) { return }
+    $script:StopRequested = $false
+    $script:StopLogged = $false
+    $script:Running = $true
+    [void]$script:Results.Clear()
+    try {
+        $Progress.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
+        Set-Status "Събиране на информация за машината..."
+
+        Write-Log "=== ИНВЕНТАРИЗАЦИЯ НА МАШИНАТА ===" "Header"
+        $freeRamTxt = ""
+
+        # --- Идентичност ---
+        try {
+            $cs = Get-WmiObject Win32_ComputerSystem -ErrorAction Stop
+            Write-Log (("  {0,-22}" -f "Компютър") + $cs.Name)
+            if ($cs.PartOfDomain) {
+                Write-Log (("  {0,-22}" -f "Домейн") + $cs.Domain)
+            } else {
+                Write-Log (("  {0,-22}" -f "Работна група") + $cs.Domain)
+            }
+        } catch {
+            Write-Log ("  Грешка при четене на данните за компютъра: " + $_.Exception.Message) "Warn"
+        }
+        Write-Log (("  {0,-22}" -f "Потребител") + ($env:USERDOMAIN + "\" + $env:USERNAME))
+        Do-Events
+
+        # --- Операционна система ---
+        try {
+            $os = Get-WmiObject Win32_OperatingSystem -ErrorAction Stop
+            $cap = "" + $os.Caption
+            $cap = ($cap -replace "^Microsoft\s+", "").Trim()
+            $build = 0
+            try { $build = [int]$os.BuildNumber } catch { }
+            if ($build -ge 22000) { $cap = $cap -replace "Windows 10", "Windows 11" }
+            $archTxt = "32-бит"
+            if ($os.OSArchitecture -ne $null) {
+                if ($os.OSArchitecture -match "64") { $archTxt = "64-бит" }
+            } elseif ($env:PROCESSOR_ARCHITEW6432 -eq "AMD64" -or $env:PROCESSOR_ARCHITECTURE -eq "AMD64") {
+                $archTxt = "64-бит"
+            }
+            $cap = $cap + " (build " + $build + "), " + $archTxt
+            Write-Log (("  {0,-22}" -f "Операционна система") + $cap)
+            try {
+                $inst = [System.Management.ManagementDateTimeConverter]::ToDateTime($os.InstallDate)
+                Write-Log (("  {0,-22}" -f "Инсталирана") + $inst.ToString("dd.MM.yyyy"))
+            } catch { }
+            try {
+                $boot = [System.Management.ManagementDateTimeConverter]::ToDateTime($os.LastBootUpTime)
+                $upDays = (New-TimeSpan -Start $boot -End ([DateTime]::Now)).Days
+                Write-Log (("  {0,-22}" -f "Последно зареждане") + ($boot.ToString("dd.MM.yyyy HH:mm") + " (преди " + $upDays + " дни)"))
+            } catch { }
+            try {
+                if ($os.FreePhysicalMemory -ne $null) {
+                    $freeRamTxt = "" + [math]::Round([double]$os.FreePhysicalMemory / 1MB, 1) + " GB"
+                }
+            } catch { }
+        } catch {
+            Write-Log ("  Грешка при четене на данните за Windows: " + $_.Exception.Message) "Warn"
+        }
+        Do-Events
+
+        # --- Хардуер ---
+        try {
+            $cs2 = Get-WmiObject Win32_ComputerSystem -ErrorAction Stop
+            Write-Log (("  {0,-22}" -f "Производител/модел") + ($cs2.Manufacturer + " " + $cs2.Model))
+        } catch {
+            Write-Log ("  Грешка при четене на производител/модел: " + $_.Exception.Message) "Warn"
+        }
+        try {
+            $bb = Get-WmiObject Win32_BaseBoard -ErrorAction Stop
+            Write-Log (("  {0,-22}" -f "Дънна платка") + (($bb.Manufacturer + " " + $bb.Product).Trim()))
+        } catch { }
+        try {
+            $bios = Get-WmiObject Win32_BIOS -ErrorAction Stop
+            Write-Log (("  {0,-22}" -f "Сериен номер") + $bios.SerialNumber)
+        } catch { }
+        try {
+            $csp = Get-WmiObject Win32_ComputerSystemProduct -ErrorAction Stop
+            Write-Log (("  {0,-22}" -f "UUID") + $csp.UUID)
+        } catch { }
+        Do-Events
+
+        # --- Процесор ---
+        try {
+            $cpus = @(Get-WmiObject Win32_Processor -ErrorAction Stop)
+            $cpuIdx = 0
+            foreach ($cpu in $cpus) {
+                $cpuIdx++
+                $cpuName = ("" + $cpu.Name) -replace "\s+", " "
+                $cpuName = $cpuName.Trim()
+                $cpuTxt = $cpuName + " (" + ("" + $cpu.NumberOfCores) + " ядра / " + $cpu.NumberOfLogicalProcessors + " нишки)"
+                $cpuLbl = "Процесор"
+                if ($cpuIdx -gt 1) { $cpuLbl = "Процесор " + $cpuIdx }
+                Write-Log (("  {0,-22}" -f $cpuLbl) + $cpuTxt)
+            }
+        } catch {
+            Write-Log ("  Грешка при четене на данните за процесора: " + $_.Exception.Message) "Warn"
+        }
+        Do-Events
+
+        # --- Памет (RAM) ---
+        try {
+            $totalBytes = 0.0
+            $modCount = 0
+            foreach ($pm in @(Get-WmiObject Win32_PhysicalMemory -ErrorAction Stop)) {
+                if ($pm.Capacity -ne $null) { $totalBytes += [double]$pm.Capacity; $modCount++ }
+            }
+            if ($modCount -gt 0) {
+                $ramTxt = "" + [math]::Round($totalBytes / 1GB, 1) + " GB (" + $modCount + " модула)"
+                if ($freeRamTxt -ne "") { $ramTxt = $ramTxt + ", свободни " + $freeRamTxt }
+                Write-Log (("  {0,-22}" -f "Памет (RAM)") + $ramTxt)
+            }
+        } catch {
+            Write-Log ("  Грешка при четене на данните за паметта: " + $_.Exception.Message) "Warn"
+        }
+        Do-Events
+
+        # --- Видеокарта ---
+        try {
+            $vnames = New-Object System.Collections.ArrayList
+            foreach ($vc in @(Get-WmiObject Win32_VideoController -ErrorAction Stop)) {
+                if ($vc.Name -ne $null -and ("" + $vc.Name).Trim() -ne "") {
+                    [void]$vnames.Add(("" + $vc.Name).Trim())
+                }
+            }
+            if ($vnames.Count -gt 0) {
+                Write-Log (("  {0,-22}" -f "Видеокарта") + ($vnames -join "; "))
+            }
+        } catch { }
+
+        # --- Дискове ---
+        try {
+            foreach ($dd in @(Get-WmiObject Win32_DiskDrive -ErrorAction Stop)) {
+                $sizeGb = [math]::Round([double]$dd.Size / 1GB, 1)
+                Write-Log (("  {0,-22}" -f "Диск") + ($dd.Model + " - " + $sizeGb + " GB"))
+            }
+        } catch { }
+        try {
+            foreach ($ld in @(Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'" -ErrorAction Stop)) {
+                $totGb = [math]::Round([double]$ld.Size / 1GB, 1)
+                $freeGb = [math]::Round([double]$ld.FreeSpace / 1GB, 1)
+                Write-Log (("  {0,-22}" -f ("Дял " + $ld.DeviceID)) + ("" + $totGb + " GB общо / " + $freeGb + " GB свободни"))
+            }
+        } catch { }
+        Do-Events
+
+        # --- Монитор ---
+        try {
+            $mons = @(Get-WmiObject -Namespace root\wmi -Class WmiMonitorID -ErrorAction Stop)
+            $monIdx = 0
+            foreach ($mi in $mons) {
+                $monIdx++
+                $mName = Convert-U16ArrayToText $mi.UserFriendlyName
+                $mMan = Convert-U16ArrayToText $mi.ManufacturerName
+                $mSer = Convert-U16ArrayToText $mi.SerialNumberID
+                $mTxt = $mName
+                if ($mTxt -eq "") { $mTxt = $mMan }
+                if ($mSer -ne "") { $mTxt = $mTxt + " (S/N " + $mSer + ")" }
+                if ($mTxt.Trim() -ne "") {
+                    $monLbl = "Монитор"
+                    if ($monIdx -gt 1) { $monLbl = "Монитор " + $monIdx }
+                    Write-Log (("  {0,-22}" -f $monLbl) + $mTxt.Trim())
+                }
+            }
+        } catch { }
+        Do-Events
+
+        # --- Мрежови адаптери ---
+        try {
+            $adapters = @(Get-WmiObject Win32_NetworkAdapterConfiguration -Filter "IPEnabled = TRUE" -ErrorAction Stop)
+            if ($adapters.Count -gt 0) {
+                Write-Log "  --- Мрежови адаптери ---"
+                foreach ($na in $adapters) {
+                    Write-Log ("    " + $na.Description)
+                    Write-Log ("      MAC: " + $na.MACAddress)
+                    $ipList = New-Object System.Collections.ArrayList
+                    if ($na.IPAddress -ne $null) {
+                        foreach ($ip in $na.IPAddress) {
+                            if ($ip.IndexOf(".") -ge 0) { [void]$ipList.Add($ip) }
+                        }
+                    }
+                    $maskList = New-Object System.Collections.ArrayList
+                    if ($na.IPSubnet -ne $null) {
+                        foreach ($sm in $na.IPSubnet) {
+                            if ($sm.IndexOf(".") -ge 0) { [void]$maskList.Add($sm) }
+                        }
+                    }
+                    Write-Log ("      IPv4: " + ($ipList -join ", ") + "   Маска: " + ($maskList -join ", "))
+                    $gwTxt = ""
+                    if ($na.DefaultIPGateway -ne $null) { $gwTxt = ($na.DefaultIPGateway -join ", ") }
+                    Write-Log ("      Шлюз: " + $gwTxt)
+                    if ($na.DHCPEnabled) {
+                        Write-Log ("      DHCP: включен (сървър " + $na.DHCPServer + ")")
+                    } else {
+                        Write-Log "      DHCP: изключен (статична конфигурация)"
+                    }
+                    $dnsTxt = ""
+                    if ($na.DNSServerSearchOrder -ne $null) { $dnsTxt = ($na.DNSServerSearchOrder -join ", ") }
+                    Write-Log ("      DNS: " + $dnsTxt)
+                    Do-Events
+                }
+            }
+        } catch {
+            Write-Log ("  Грешка при четене на мрежовата конфигурация: " + $_.Exception.Message) "Warn"
+        }
+
+        Add-Result "Инвентаризация" "OK" "данните са събрани"
+        Write-Log "Данните са включени в лога - използвайте 'Запази лога' или файлът на Desktop." "OK"
+
+    } catch {
+        Write-Log ("Грешка: " + $_.Exception.Message) "Fail"
+    } finally {
+        Complete-TestRun -Progress $Progress -BtnStart $BtnStart -BtnLoad $BtnLoad -BtnStop $BtnStop `
+            -BtnQuick $BtnQuick -BtnScan $BtnScan -BtnMon $BtnMon -BtnInfo $BtnInfo
     }
 }
 
@@ -2235,6 +2469,13 @@ if (-not $env:NETWORKTESTER_NOGUI) {
         $btnScan.Anchor = "Bottom, Left"
         $form.Controls.Add($btnScan)
 
+        $btnInfo = New-Object System.Windows.Forms.Button
+        $btnInfo.Text = "Машина"
+        $btnInfo.Location = New-Object System.Drawing.Point(550, 610)
+        $btnInfo.Size = New-Object System.Drawing.Size(110, 28)
+        $btnInfo.Anchor = "Bottom, Left"
+        $form.Controls.Add($btnInfo)
+
         # ---------- Load settings ----------
         $gw = Get-DefaultGateway
         if ($gw -ne "") { $txtRouter.Text = $gw }
@@ -2293,11 +2534,12 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             $btnQuick.Enabled = $false
             $btnScan.Enabled = $false
             $btnMon.Enabled = $false
+            $btnInfo.Enabled = $false
             $btnStop.Enabled = $true
             Start-AllTests -RouterIp $router -ServerTarget $server -PortsCsv $txtPorts.Text.Trim() `
                 -PingCount ([int]$numPing.Value) -StabSec ([int]$numStab.Value) `
                 -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
-                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo
         })
 
         $btnLoad.Add_Click({
@@ -2324,12 +2566,13 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             $btnQuick.Enabled = $false
             $btnScan.Enabled = $false
             $btnMon.Enabled = $false
+            $btnInfo.Enabled = $false
             $btnStop.Enabled = $true
             Start-LoadTests -ServerTarget $server -PortsCsv $txtPorts.Text.Trim() `
                 -Connections ([int]$numLoadConns.Value) -Seconds ([int]$numLoadSec.Value) `
                 -LoadFile $txtLoadFile.Text.Trim() `
                 -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
-                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo
         })
 
         $btnQuick.Add_Click({
@@ -2354,10 +2597,11 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             $btnQuick.Enabled = $false
             $btnScan.Enabled = $false
             $btnMon.Enabled = $false
+            $btnInfo.Enabled = $false
             $btnStop.Enabled = $true
             Start-QuickTest -RouterIp $router -ServerTarget $server `
                 -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
-                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo
         })
 
         $btnMon.Add_Click({
@@ -2384,11 +2628,12 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             $btnQuick.Enabled = $false
             $btnScan.Enabled = $false
             $btnMon.Enabled = $false
+            $btnInfo.Enabled = $false
             $btnStop.Enabled = $true
             Start-Monitor -RouterIp $router -ServerTarget $server `
                 -IntervalSec ([int]$numMonInt.Value) -Beep $chkBeep.Checked `
                 -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
-                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo
         })
 
         $btnScan.Add_Click({
@@ -2403,10 +2648,29 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             $btnQuick.Enabled = $false
             $btnScan.Enabled = $false
             $btnMon.Enabled = $false
+            $btnInfo.Enabled = $false
             $btnStop.Enabled = $true
             Invoke-NetworkScan -ServerTarget $server `
                 -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
-                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo
+        })
+
+        $btnInfo.Add_Click({
+            if ($script:Running) { return }
+            $router = $txtRouter.Text.Trim()
+            $server = $txtServer.Text.Trim()
+            Save-Settings $router $server $txtPorts.Text.Trim() ([int]$numPing.Value) ([int]$numStab.Value) `
+                ([int]$numLoadConns.Value) ([int]$numLoadSec.Value) $txtLoadFile.Text.Trim() `
+                ([int]$numMonInt.Value) ([int]$chkBeep.Checked)
+            $btnStart.Enabled = $false
+            $btnLoad.Enabled = $false
+            $btnQuick.Enabled = $false
+            $btnScan.Enabled = $false
+            $btnMon.Enabled = $false
+            $btnInfo.Enabled = $false
+            $btnStop.Enabled = $true
+            Show-SystemInventory -Progress $progress -BtnStart $btnStart -BtnLoad $btnLoad -BtnStop $btnStop `
+                -BtnQuick $btnQuick -BtnScan $btnScan -BtnMon $btnMon -BtnInfo $btnInfo
         })
 
         $btnStop.Add_Click({
@@ -2438,7 +2702,7 @@ if (-not $env:NETWORKTESTER_NOGUI) {
             [void]$script:LogLines.Clear()
         })
 
-        Write-Log "NetworkTester е готов. Попълнете настройките и изберете: 'Старт', 'Бърз тест', 'Старт натоварване', 'Старт мониторинг' или 'Сканирай LAN'." "Header"
+        Write-Log "NetworkTester е готов. Попълнете настройките и изберете: 'Старт', 'Бърз тест', 'Старт натоварване', 'Старт мониторинг', 'Сканирай LAN' или 'Машина'." "Header"
         [void]$form.ShowDialog()
     } catch {
         try { Add-Type -AssemblyName System.Windows.Forms } catch { }
